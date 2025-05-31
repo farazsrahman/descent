@@ -1,3 +1,5 @@
+Original content in this repo comes from https://github.com/Laz4rz/mup/tree/main
+
 # muP made easy
 
 A minimal (really) implementation of muP with SGD and Adam, following the Tensor Programs IV and Tensor Programs V papers. Classes `SPMLP` and `muMLPTab9` implement SP and muP parametrizations as shown in Table1 TPIV paper or Table9 TPV paper equivalently. Rest of the code is just training utils. 
