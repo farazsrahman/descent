@@ -3,5 +3,5 @@ Mono-repo for all mini- experiments / projects on optimizers for deep-learning, 
 
 ## Referenced repos
 
-1. [muP Implementation](https://github.com/Laz4rz/mup/tree/main)
-   - Minimal implementation of maximal update parametrization from [Laz4rz](https://github.com/Laz4rz)
+1. [muP](https://github.com/Laz4rz/mup/tree/main) - [Laz4rz](https://github.com/Laz4rz)
+   - Minimal implementation of maximal update parametrization 
