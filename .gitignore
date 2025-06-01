@@ -76,7 +76,7 @@ coverage.xml
 *.db
 
 # Results and data
-results/
+*results/
 data/
 *.csv
 *.json
@@ -90,3 +90,5 @@ data/
 .env.development.local
 .env.test.local
 .env.production.local
+
+env/results/
