@@ -319,6 +319,7 @@ if __name__ == '__main__':
     parser.add_argument('--subset', type=float, default=0.2, help="Percentage of dataset to use for training (default: 0.2)")
     parser.add_argument("--optimizer", type=str, default="SGD", choices=["SGD", "Adam"], help="Optimizer to use: 'SGD' or 'Adam'")
     parser.add_argument("--lr_range", type=float, nargs=2, default=[-12, -4], help="Range of log2 learning rates to use (default: [-16, -4])")
+    parser.add_argument("--lr_points", type=int, default=40, help="Number of learning rate points to sweep over (default: 40)")
     args = parser.parse_args()
 
     if args.model == 'MLP':
@@ -349,28 +350,29 @@ if __name__ == '__main__':
     epochs = 20
     seeds = [2137]
     # seeds = [0, 1, 2, 3, 4]
-    log2lrs = np.linspace(min_lr, max_lr, 40)
-    widths = [128, 256, 512, 1024, 2048, 4096, 8192] 
-    # widths = [128]
+    log2lrs = np.linspace(min_lr, max_lr, args.lr_points)
+    # widths = [128, 256, 512, 1024, 2048, 4096, 8192]
+    widths = [128, 256]
 
     free_memory, max_utilization = 16, 50
     availage_gpus = get_available_gpus(min_free_mem_gb=free_memory, max_utilization=max_utilization)
     if len(availage_gpus) == 0:
         raise RuntimeError(f"No available GPUs found with at least {free_memory}GB free memory and utilization < {max_utilization}%")
-    availage_gpus = [0, 1, 5, 6, 7]
+    # availage_gpus = [0, 1, 5, 6, 7]
     devices = [f"cuda:{i}" for i in availage_gpus]
     print(f"Available devices: {len(devices)}, {availage_gpus}")
 
     jobs = list(itertools.product(log2lrs, widths))
-    jobs_chunks = chunk_jobs(jobs, len(devices))
-    print(f"Jobs: {len(jobs)}, Chunks: {len(jobs_chunks)}")
+    jobs_per_gpu = 4 # Run 4 jobs per GPU
+    total_parallel_jobs = len(devices) * jobs_per_gpu
+    jobs_chunks = chunk_jobs(jobs, total_parallel_jobs)
+    print(f"Jobs: {len(jobs)}, Chunks: {len(jobs_chunks)}, Jobs per GPU: {jobs_per_gpu}")
     
     processes = []
     shared_tensor = torch.zeros(len(jobs)).to(device).share_memory_()
     pbar = tqdm(total=shared_tensor.numel(), desc="Processing", unit="item")
     for enum, job_chunk in enumerate(jobs_chunks):
-        device = devices[enum]
-
+        device = devices[enum % len(devices)]
         print(f"Starting process {enum} on {device} with {len(job_chunk)} jobs")
         p = mp.Process(target=run_chunk, args=(job_chunk, device, shared_tensor, preloaded, seeds, model_class, optimizer, epochs))
         processes.append(p)
@@ -382,7 +384,7 @@ if __name__ == '__main__':
             pbar.n = shared_tensor.count_nonzero().item()
             pbar.set_postfix_str(f"Completed: {shared_tensor.count_nonzero().item()}/{len(shared_tensor)}")
             pbar.refresh()
-        sleep(5)
+        sleep(2.5)#5)
     pbar.close()
 
     results_df = pd.DataFrame(index=log2lrs, columns=widths)
