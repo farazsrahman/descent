@@ -1,0 +1,5 @@
+torch>=2.0.0
+numpy>=1.24.0
+ipdb>=0.13.0
+pytorch-optimizer>=0.3.0
+tqdm>=4.66.0

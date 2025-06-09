@@ -36,10 +36,6 @@ venv.bak/
 *.swo
 .DS_Store
 
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
 # Distribution / packaging
 .Python
 build/
