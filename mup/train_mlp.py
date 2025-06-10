@@ -165,7 +165,7 @@ class demoMLP(nn.Module):
         return self.fc_3(out) * self.output_mult
 
 class MLP(nn.Module):
-    """Standard MLP model -- does not show SP expected training behavior"""
+    """Standard MLP model (i.e. using default Torch initialization) -- does not show SP expected training behavior"""
     def __init__(self, width=128, num_classes=10):
         super().__init__()
         self.width = width
@@ -231,7 +231,7 @@ class customMLP(nn.Module):
     def __init__(self, width=128, num_classes=10):
         super().__init__()
         self.width = width
-        self.input_mult = self.width**0.5
+        self.input_mult = self.width**0.4
         self.output_mult = self.width**-0.5
         self.fc_1 = nn.Linear(3072, width, bias=False)
         self.fc_2 = nn.Linear(width, width, bias=False)
@@ -315,7 +315,7 @@ if __name__ == '__main__':
     mp.set_start_method('spawn', force=True)
 
     parser = argparse.ArgumentParser(description="Train MLP or muMLP model.")
-    parser.add_argument('--model', type=str, choices=['MLP', 'muMLP', 'demoMLP', 'SPMLP'], required=True, help="Choose the model type: 'MLP', 'muMLP', 'SPMLP' or 'demoMLP'")
+    parser.add_argument('--model', type=str, choices=['MLP', 'muMLP', 'demoMLP', 'SPMLP', 'customMLP'], required=True, help="Choose the model type: 'MLP', 'muMLP', 'SPMLP' or 'demoMLP'")
     parser.add_argument('--subset', type=float, default=0.2, help="Percentage of dataset to use for training (default: 0.2)")
     parser.add_argument("--optimizer", type=str, default="SGD", choices=["SGD", "Adam"], help="Optimizer to use: 'SGD' or 'Adam'")
     parser.add_argument("--lr_range", type=float, nargs=2, default=[-12, -4], help="Range of log2 learning rates to use (default: [-16, -4])")
@@ -330,6 +330,8 @@ if __name__ == '__main__':
         model_class = demoMLP
     elif args.model == 'SPMLP':
         model_class = SP_MLP
+    elif args.model == 'customMLP':
+        model_class = customMLP
     else:
         raise ValueError("Invalid model type. Choose 'MLP' or 'muMLP'.")
     print(f"Using model: {args.model}, subset: {args.subset*100}%")
@@ -352,18 +354,18 @@ if __name__ == '__main__':
     # seeds = [0, 1, 2, 3, 4]
     log2lrs = np.linspace(min_lr, max_lr, args.lr_points)
     # widths = [128, 256, 512, 1024, 2048, 4096, 8192]
-    widths = [128, 256]
+    widths = [128, 256, 512]
 
     free_memory, max_utilization = 16, 50
     availage_gpus = get_available_gpus(min_free_mem_gb=free_memory, max_utilization=max_utilization)
     if len(availage_gpus) == 0:
         raise RuntimeError(f"No available GPUs found with at least {free_memory}GB free memory and utilization < {max_utilization}%")
-    # availage_gpus = [0, 1, 5, 6, 7]
+    availage_gpus = [4,5,6,7]
     devices = [f"cuda:{i}" for i in availage_gpus]
     print(f"Available devices: {len(devices)}, {availage_gpus}")
 
     jobs = list(itertools.product(log2lrs, widths))
-    jobs_per_gpu = 4 # Run 4 jobs per GPU
+    jobs_per_gpu = 12 # Run 4 jobs per GPU
     total_parallel_jobs = len(devices) * jobs_per_gpu
     jobs_chunks = chunk_jobs(jobs, total_parallel_jobs)
     print(f"Jobs: {len(jobs)}, Chunks: {len(jobs_chunks)}, Jobs per GPU: {jobs_per_gpu}")
