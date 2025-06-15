@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import get_scheduler
 from collections import defaultdict
-import wandb
+# import wandb
 from mmdit import MMDiT
 import pandas as pd
 import plotly.express as px
@@ -110,19 +110,9 @@ def log_dif(model_cur_sd, model_prev_sd):
 
     #
 
-    table = wandb.Table(columns=["plotly_figure"])
-
-    # Create path for Plotly figure
-    path_to_plotly_html = "./plotly_figure.html"
-
-    # Write Plotly figure to HTML
-    fig.write_html(path_to_plotly_html, auto_play=False)
-
-    # Add Plotly figure as HTML file into Table
-    table.add_data(wandb.Html(path_to_plotly_html))
-
-    # Log Table
-    wandb.log({"weight_distribution_changes": table})
+    # table = wandb.Table(columns=["plotly_figure"])
+    # table.add_data(wandb.Html(path_to_plotly_html))
+    # wandb.log({"weight_distribution_changes": table})
 
 
 class RF(torch.nn.Module):
@@ -653,24 +643,7 @@ def main(
     ##### actual training loop
 
     if global_rank == 0:
-        wandb.init(
-            project="6.5b_t2i_mup",
-            name=run_name,
-            config={
-                "num_train_epochs": num_train_epochs,
-                "learning_rate": learning_rate,
-                "offload": offload,
-                "train_batch_size": train_batch_size,
-                "per_device_train_batch_size": per_device_train_batch_size,
-                "zero_stage": zero_stage,
-                "seed": seed,
-                "train_dir": train_dir,
-                "skipped_ema_step": skipped_ema_step,
-                "weight_decay": weight_decay,
-                "hidden_dim": hidden_dim,
-            },
-            notes=note,
-        )
+        pass  # disabled wandb init
 
     for i in range(num_train_epochs):
         pbar = tqdm(dataloader)
@@ -706,20 +679,18 @@ def main(
                     losscnt[int(t * 10)] += 1
 
                 if global_step % 64 == 0:
-                    wandb.log(
-                        {
-                            "train/avg_loss": sum(lossbin.values())
-                            / sum(losscnt.values()),
-                            "train/grad_norm": norm,
-                            "value/rawval": value,
-                            "value/ema1val": ema1_of_value,
-                            "value/ema2val": ema2_of_value,
-                            **{
-                                f"loss/bin_{i}": lossbin[i] / losscnt[i]
-                                for i in range(10)
-                            },
-                        }
-                    )
+                    # wandb.log(
+                    #     {
+                    #         "train/avg_loss": sum(lossbin.values()) / sum(losscnt.values()),
+                    #         "train/grad_norm": norm,
+                    #         "value/rawval": value,
+                    #         "value/ema1val": ema1_of_value,
+                    #         "value/ema2val": ema2_of_value,
+                    #         **{
+                    #             f"loss/bin_{i}": lossbin[i] / losscnt[i] for i in range(10)
+                    #         },
+                    #     }
+                    # )
                     # reset
                     lossbin = {i: 0 for i in range(10)}
                     losscnt = {i: 1e-6 for i in range(10)}

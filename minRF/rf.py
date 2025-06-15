@@ -55,12 +55,16 @@ if __name__ == "__main__":
     from torchvision.utils import make_grid
     from tqdm import tqdm
 
-    import wandb
+    # import wandb
     from dit import DiT_Llama
 
     parser = argparse.ArgumentParser(description="use cifar?")
     parser.add_argument("--cifar", action="store_true")
+    parser.add_argument("--log_lrs", type=float, nargs="+", help="List of learning rates")
+    parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
     args = parser.parse_args()
+    widths = args.model_widths
+    log_lrs = args.log_lr
     CIFAR = args.cifar
 
     if CIFAR:
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     mnist = fdatasets(root="./data", train=True, download=True, transform=transform)
     dataloader = DataLoader(mnist, batch_size=256, shuffle=True, drop_last=True)
 
-    wandb.init(project=f"rf_{dataset_name}")
+    # wandb.init(project="paramFM", entity="faraz-personal")
 
     for epoch in range(100):
         lossbin = {i: 0 for i in range(10)}
@@ -116,7 +120,7 @@ if __name__ == "__main__":
             loss.backward()
             optimizer.step()
 
-            wandb.log({"loss": loss.item()})
+            # wandb.log({"loss": loss.item()})
 
             # count based on t
             for t, l in blsct:
@@ -127,7 +131,7 @@ if __name__ == "__main__":
         for i in range(10):
             print(f"Epoch: {epoch}, {i} range loss: {lossbin[i] / losscnt[i]}")
 
-        wandb.log({f"lossbin_{i}": lossbin[i] / losscnt[i] for i in range(10)})
+        # wandb.log({f"lossbin_{i}": lossbin[i] / losscnt[i] for i in range(10)})
 
         rf.model.eval()
         with torch.no_grad():
