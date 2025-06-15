@@ -1,7 +1,9 @@
 # implementation of Rectified Flow for simple minded people like me.
 import argparse
-
+import os
+import shutil
 import torch
+import sys
 
 # train class conditional RF on data.
 import numpy as np
@@ -55,7 +57,7 @@ class RF:
             images.append(z)
         return images
 
-def train_rf(width, lr, dataset_name):
+def train_rf(width, lr, dataset_name, n_epochs):
     print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name}")
 
     if dataset_name == "cifar":
@@ -99,8 +101,8 @@ def train_rf(width, lr, dataset_name):
     dataloader = DataLoader(mnist, batch_size=256, shuffle=True, drop_last=True)
 
     # wandb.init(project="paramFM", entity="faraz-personal")
-
-    for epoch in range(100):
+    per_epoch_per_bin_loss = []
+    for epoch in range(n_epochs):
         lossbin = {i: 0 for i in range(10)}
         losscnt = {i: 1e-6 for i in range(10)}
         for i, (x, c) in tqdm(enumerate(dataloader)):
@@ -154,14 +156,30 @@ def train_rf(width, lr, dataset_name):
 
         rf.model.train()
 
+        per_epoch_per_bin_loss.append([lossbin[i] / losscnt[i] for i in range(10)])
+
+    return per_epoch_per_bin_loss
+
 if __name__ == "__main__":
+
+    if os.path.exists("contents"):
+        response = input("'contents' directory exists. Remove it? (y/n): ")
+        if response.lower() == 'y':
+            shutil.rmtree("contents")
+            print("Removed 'contents' directory")
+        else:
+            print("Keeping 'contents' directory")
+            sys.exit()
+    os.makedirs("contents", exist_ok=True)
+
     parser = argparse.ArgumentParser(description="use cifar?")
     parser.add_argument("--cifar", action="store_true")
     parser.add_argument("--lrs", type=float, nargs="+", help="List of learning rates")
     parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
+    parser.add_argument("--n_epochs", type=int, help="Number of epochs", default=20)
     args = parser.parse_args()
     widths = args.model_widths
     lrs = args.lrs
     CIFAR = args.cifar
 
-    train_rf(widths[0], lrs[0], "cifar" if CIFAR else "mnist")
+    per_epoch_per_bin_loss = train_rf(widths[0], lrs[0], "cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
