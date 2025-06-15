@@ -57,35 +57,42 @@ class RF:
             images.append(z)
         return images
 
+def get_cifar10():
+    fdatasets = datasets.CIFAR10
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.RandomCrop(32),
+            transforms.RandomHorizontalFlip(),
+            transforms.Normalize((0.5,), (0.5,)),
+        ]
+    )
+    channels = 3
+    return fdatasets, transform, channels
+
+def get_mnist():
+    fdatasets = datasets.MNIST
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Pad(2),
+            transforms.Normalize((0.5,), (0.5,)),
+        ]
+    )
+    channels = 1
+    return fdatasets, transform, channels
+
 def train_rf(width, lr, dataset_name, n_epochs):
     print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name}")
 
     if dataset_name == "cifar":
-        fdatasets = datasets.CIFAR10
-        transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.RandomCrop(32),
-                transforms.RandomHorizontalFlip(),
-                transforms.Normalize((0.5,), (0.5,)),
-            ]
-        )
-        channels = 3
+        fdatasets, transform, channels = get_cifar10()
         model = DiT_Llama(
             channels, 32, dim=256, n_layers=10, n_heads=8, num_classes=10
         ).cuda()
 
-    else:
-        dataset_name = "mnist"
-        fdatasets = datasets.MNIST
-        transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                transforms.Pad(2),
-                transforms.Normalize((0.5,), (0.5,)),
-            ]
-        )
-        channels = 1
+    elif dataset_name == "mnist":
+        fdatasets, transform, channels = get_mnist()
         model = DiT_Llama(
             channels, 32, dim=width, n_layers=6, n_heads=4, num_classes=10 # default dim was 64
         ).cuda()
