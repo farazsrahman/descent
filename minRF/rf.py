@@ -82,20 +82,23 @@ def get_mnist():
     channels = 1
     return fdatasets, transform, channels
 
-def train_rf(lr, width, dataset_name, n_epochs):
-    print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name}")
-
+def train_rf(lr, width, dataset_name, n_epochs, gpu_id=0):
+    print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name} using GPU {gpu_id}")
+    
+    # Set the device for this process
+    device = torch.device(f'cuda:{gpu_id}')
+    
     if dataset_name == "cifar":
         fdatasets, transform, channels = get_cifar10()
         model = DiT_Llama(
-            channels, 32, dim=256, n_layers=10, n_heads=8, num_classes=10
-        ).cuda()
+            channels, 32, dim=width, n_layers=10, n_heads=8, num_classes=10
+        ).to(device)
 
     elif dataset_name == "mnist":
         fdatasets, transform, channels = get_mnist()
         model = DiT_Llama(
             channels, 32, dim=width, n_layers=6, n_heads=4, num_classes=10 # default dim was 64
-        ).cuda()
+        ).to(device)
 
     model_size = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Number of parameters: {model_size}, {model_size / 1e6}M")
@@ -113,7 +116,7 @@ def train_rf(lr, width, dataset_name, n_epochs):
         lossbin = {i: 0 for i in range(10)}
         losscnt = {i: 1e-6 for i in range(10)}
         for i, (x, c) in tqdm(enumerate(dataloader)):
-            x, c = x.cuda(), c.cuda()
+            x, c = x.to(device), c.to(device)
             optimizer.zero_grad()
             loss, blsct = rf.forward(x, c)
             loss.backward()
@@ -134,10 +137,10 @@ def train_rf(lr, width, dataset_name, n_epochs):
 
         rf.model.eval()
         with torch.no_grad():
-            cond = torch.arange(0, 16).cuda() % 10
-            uncond = torch.ones_like(cond) * 10
+            cond = torch.arange(0, 16).to(device) % 10
+            uncond = torch.ones_like(cond).to(device) * 10
 
-            init_noise = torch.randn(16, channels, 32, 32).cuda()
+            init_noise = torch.randn(16, channels, 32, 32).to(device)
             images = rf.sample(init_noise, cond, uncond)
             # image sequences to gif
             gif = []
@@ -167,10 +170,10 @@ def train_rf(lr, width, dataset_name, n_epochs):
         per_epoch_per_bin_loss.append([lossbin[i] / losscnt[i] for i in range(10)])
 
     return per_epoch_per_bin_loss
-
 if __name__ == "__main__":
     from concurrent.futures import ProcessPoolExecutor
     from functools import partial
+    import torch.multiprocessing as mp
 
     if os.path.exists("contents"):
         response = input("'contents' directory exists. Remove it? (y/n): ")
@@ -188,27 +191,35 @@ if __name__ == "__main__":
     parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
     parser.add_argument("--n_epochs", type=int, help="Number of epochs", default=20)
     parser.add_argument("--no_parallel", action="store_true")
+    parser.add_argument("--num_gpus", type=int, default=torch.cuda.device_count(), help="Number of GPUs to use")
     args = parser.parse_args()
     widths = args.model_widths
     lrs = args.lrs
     CIFAR = args.cifar
 
-    final_loss_by_lr = {}
+    final_loss_by_lr_by_width = {width: {} for width in widths}
 
-    train_fn = partial(train_rf, width=widths[0], dataset_name="cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+    # Set up multiprocessing
+    mp.set_start_method('spawn', force=True)
+
+    for width in widths:
+        train_fn = partial(train_rf, width=width, dataset_name="cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+        
+        if not args.no_parallel:
+            with mp.Pool(processes=len(lrs)) as pool:
+                results = pool.map(train_fn, lrs)
+        else:
+            results = [train_fn(lr) for lr in lrs]
+        
+        for lr, per_epoch_per_bin_loss in zip(lrs, results):
+            final_per_bin_loss = per_epoch_per_bin_loss[-1]
+            final_loss = sum(final_per_bin_loss) / 10.0
+            final_loss_by_lr_by_width[width][lr] = final_loss
     
-    if not args.no_parallel:
-        with ProcessPoolExecutor() as executor:
-            results = list(executor.map(train_fn, lrs))
-    else:
-        results = [train_fn(lr) for lr in lrs]
-    
-    final_loss_by_lr = {}
-    for lr, per_epoch_per_bin_loss in zip(lrs, results):
-        final_per_bin_loss = per_epoch_per_bin_loss[-1]
-        final_loss = sum(final_per_bin_loss) / 10.0
-        final_loss_by_lr[lr] = final_loss
-    
-    print("Final loss by learning rate:")
-    for lr, loss in final_loss_by_lr.items():
-        print(f"lr: {lr}, loss: {loss}")
+    print("Final loss by width and learning rate:")
+    for width in widths:
+        print(f"\nWidth: {width}")
+        for lr, loss in final_loss_by_lr_by_width[width].items():
+            print(f"lr: {lr}, loss: {loss}")
+
+    torch.save(final_loss_by_lr_by_width, "contents/final_loss_by_lr_by_width.pt")
