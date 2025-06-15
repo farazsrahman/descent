@@ -3,6 +3,17 @@ import argparse
 
 import torch
 
+# train class conditional RF on data.
+import numpy as np
+import torch.optim as optim
+from PIL import Image
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+from torchvision.utils import make_grid
+from tqdm import tqdm
+
+# import wandb
+from dit import DiT_Llama
 
 class RF:
     def __init__(self, model, ln=True):
@@ -44,31 +55,10 @@ class RF:
             images.append(z)
         return images
 
+def train_rf(width, lr, dataset_name):
+    print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name}")
 
-if __name__ == "__main__":
-    # train class conditional RF on mnist.
-    import numpy as np
-    import torch.optim as optim
-    from PIL import Image
-    from torch.utils.data import DataLoader
-    from torchvision import datasets, transforms
-    from torchvision.utils import make_grid
-    from tqdm import tqdm
-
-    # import wandb
-    from dit import DiT_Llama
-
-    parser = argparse.ArgumentParser(description="use cifar?")
-    parser.add_argument("--cifar", action="store_true")
-    parser.add_argument("--log_lrs", type=float, nargs="+", help="List of learning rates")
-    parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
-    args = parser.parse_args()
-    widths = args.model_widths
-    log_lrs = args.log_lr
-    CIFAR = args.cifar
-
-    if CIFAR:
-        dataset_name = "cifar"
+    if dataset_name == "cifar":
         fdatasets = datasets.CIFAR10
         transform = transforms.Compose(
             [
@@ -95,15 +85,15 @@ if __name__ == "__main__":
         )
         channels = 1
         model = DiT_Llama(
-            channels, 32, dim=64, n_layers=6, n_heads=4, num_classes=10
+            channels, 32, dim=width, n_layers=6, n_heads=4, num_classes=10 # default dim was 64
         ).cuda()
 
     model_size = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Number of parameters: {model_size}, {model_size / 1e6}M")
 
     rf = RF(model)
-    optimizer = optim.Adam(model.parameters(), lr=5e-4)
-    criterion = torch.nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr) # default lr was 5e-4
+    # criterion = torch.nn.MSELoss()
 
     mnist = fdatasets(root="./data", train=True, download=True, transform=transform)
     dataloader = DataLoader(mnist, batch_size=256, shuffle=True, drop_last=True)
@@ -163,3 +153,15 @@ if __name__ == "__main__":
             last_img.save(f"contents/sample_{epoch}_last.png")
 
         rf.model.train()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="use cifar?")
+    parser.add_argument("--cifar", action="store_true")
+    parser.add_argument("--lrs", type=float, nargs="+", help="List of learning rates")
+    parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
+    args = parser.parse_args()
+    widths = args.model_widths
+    lrs = args.lrs
+    CIFAR = args.cifar
+
+    train_rf(widths[0], lrs[0], "cifar" if CIFAR else "mnist")
