@@ -82,7 +82,7 @@ def get_mnist():
     channels = 1
     return fdatasets, transform, channels
 
-def train_rf(width, lr, dataset_name, n_epochs):
+def train_rf(lr, width, dataset_name, n_epochs):
     print(f"Training Rectified Flow with width {width} and learning rate {lr} on {dataset_name}")
 
     if dataset_name == "cifar":
@@ -169,6 +169,8 @@ def train_rf(width, lr, dataset_name, n_epochs):
     return per_epoch_per_bin_loss
 
 if __name__ == "__main__":
+    from concurrent.futures import ProcessPoolExecutor
+    from functools import partial
 
     if os.path.exists("contents"):
         response = input("'contents' directory exists. Remove it? (y/n): ")
@@ -185,6 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--lrs", type=float, nargs="+", help="List of learning rates")
     parser.add_argument("--model_widths", type=int, nargs="+", help="List of model widths")
     parser.add_argument("--n_epochs", type=int, help="Number of epochs", default=20)
+    parser.add_argument("--no_parallel", action="store_true")
     args = parser.parse_args()
     widths = args.model_widths
     lrs = args.lrs
@@ -192,8 +195,16 @@ if __name__ == "__main__":
 
     final_loss_by_lr = {}
 
-    for lr in lrs:
-        per_epoch_per_bin_loss = train_rf(widths[0], lr, "cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+    train_fn = partial(train_rf, width=widths[0], dataset_name="cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+    
+    if not args.no_parallel:
+        with ProcessPoolExecutor() as executor:
+            results = list(executor.map(train_fn, lrs))
+    else:
+        results = [train_fn(lr) for lr in lrs]
+    
+    final_loss_by_lr = {}
+    for lr, per_epoch_per_bin_loss in zip(lrs, results):
         final_per_bin_loss = per_epoch_per_bin_loss[-1]
         final_loss = sum(final_per_bin_loss) / 10.0
         final_loss_by_lr[lr] = final_loss
