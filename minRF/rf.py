@@ -152,7 +152,8 @@ def train_rf(width, lr, dataset_name, n_epochs):
             )
 
             last_img = gif[-1]
-            last_img.save(f"contents/sample_{epoch}_last.png")
+            os.makedirs(f"contents/lr_{lr}_width_{width}", exist_ok=True)
+            last_img.save(f"contents/lr_{lr}_width_{width}/sample_{epoch}_last.png")
 
         rf.model.train()
 
@@ -182,4 +183,14 @@ if __name__ == "__main__":
     lrs = args.lrs
     CIFAR = args.cifar
 
-    per_epoch_per_bin_loss = train_rf(widths[0], lrs[0], "cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+    final_loss_by_lr = {}
+
+    for lr in lrs:
+        per_epoch_per_bin_loss = train_rf(widths[0], lr, "cifar" if CIFAR else "mnist", n_epochs=args.n_epochs)
+        final_per_bin_loss = per_epoch_per_bin_loss[-1]
+        final_loss = sum(final_per_bin_loss) / 10.0
+        final_loss_by_lr[lr] = final_loss
+    
+    print("Final loss by learning rate:")
+    for lr, loss in final_loss_by_lr.items():
+        print(f"lr: {lr}, loss: {loss}")
